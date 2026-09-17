@@ -220,7 +220,8 @@ $ cp .env.example .env
 | ---------------- | ------------------------------------------- | ---------------------------------------------------------------------- |
 | `DEFAULT_MODEL`  | for example `gemma4:latest` or `gemini-2.5-pro` | Model to use; must exist in `providers.json` — the provider is inferred from which provider lists it. Defaults to `default_model` in `providers.json`. |
 | `GEMINI_API_KEY` | string                                      | Required when using a Gemini model.                                   |
-| `GITHUB_TOKEN`   | optional                                    | Inherits from your shell environment, improves GitHub API rate limits. |
+| `GITHUB_TOKEN`   | optional                                    | Inherits from your shell environment, improves GitHub API rate limits (60/hr → 5000/hr). |
+| `GITEE_TOKEN`    | optional                                    | Personal Access Token from <https://gitee.com/profile/personal_access_tokens>. Raises Gitee rate limit to 5000/hr. Get one if you evaluate Chinese candidates' Gitee profiles frequently. |
 
 Provider mapping lives in `providers.json` — each provider declares its `base_url`, an optional API-key env var, and per-model parameters; `config.py` loads it and resolves the provider for a model. `config.py` also has a flag:
 
@@ -313,6 +314,29 @@ Tesseract must have the `chi_sim` language pack installed:
 - Windows: UB Mannheim build, tick `chi_sim` during install
 
 Without `chi_sim`, image resumes containing Chinese characters will OCR as empty/garbled. The CLI prints a clear error if Tesseract is missing entirely.
+
+---
+
+## Code-platform enrichment (GitHub + Gitee) / 代码平台增强
+
+When a candidate's resume contains GitHub or Gitee profile URLs in `basics.profiles`, the pipeline automatically fetches each platform's public profile, repos, and contributors, then merges the data into a unified `code_platforms` cache file (`cache/code_platforms_cache_<basename>.json`). The LLM evaluator uses this data when scoring `open_source` and `competitions` (especially the GitHub-only contribution analysis that affects `open_source` weighting).
+
+| Platform | Auth | Rate limit (unauth) | Rate limit (auth) | Token env var |
+|---|---|---|---|---|
+| GitHub | Bearer token | 60 req/hr | 5000 req/hr | `GITHUB_TOKEN` |
+| Gitee  | Bearer token | 60 req/min | 5000 req/hr | `GITEE_TOKEN` |
+
+**Setup for Gitee** (optional, only if you evaluate Chinese candidates' Gitee profiles):
+
+1. Go to <https://gitee.com/profile/personal_access_tokens> and generate a Personal Access Token.
+2. Set `GITEE_TOKEN=<your-token>` in your environment (or in `.env`).
+3. Re-run `score.py`. The CLI prints a one-time tip if the token is missing.
+
+**Behavior notes:**
+- The orchestrator (`code_platforms.py`) is opt-in by presence: a candidate without a Gitee URL produces identical output to before this change.
+- Projects from both platforms are deduplicated by repo URL (GitHub preferred as the primary profile when both are present).
+- The cache filename changed from `cache/githubcache_<basename>.json` to `cache/code_platforms_cache_<basename>.json`. Old caches are not migrated; delete them if you want to force a re-fetch.
+- Gitee contributors endpoint may 404 for some repos; in that case the project is conservatively treated as a `self_project`.
 
 ---
 

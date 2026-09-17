@@ -24,7 +24,7 @@ if sys.platform == "win32":
 import argparse
 
 from pdf_dispatcher import extract_resume_data, UnsupportedFormatError
-from github import fetch_and_display_github_info
+from code_platforms import fetch_code_platform_data
 from models import JSONResume, build_evaluation_model
 from typing import List, Optional, Dict
 from evaluator import ResumeEvaluator
@@ -217,7 +217,7 @@ def main(resume_path, role: Role):
     # uniformly for .pdf, .docx, .doc, .png, .jpg, .jpeg, .tif, .tiff.
     base = os.path.splitext(os.path.basename(resume_path))[0]
     cache_filename = f"cache/resumecache_{base}.json"
-    github_cache_filename = f"cache/githubcache_{base}.json"
+    code_platforms_cache_filename = f"cache/code_platforms_cache_{base}.json"
 
     resume_data = None
     cache_loaded = False
@@ -270,49 +270,59 @@ def main(resume_path, role: Role):
 
     # Check if cache exists and we're in development mode
     github_data = {}
-    github_cache_loaded = False
-    if DEVELOPMENT_MODE and os.path.exists(github_cache_filename):
-        print(f"Loading cached data from {github_cache_filename}")
+    code_platforms_cache_loaded = False
+    if DEVELOPMENT_MODE and os.path.exists(code_platforms_cache_filename):
+        print(f"Loading cached data from {code_platforms_cache_filename}")
         try:
-            loaded_github = json.loads(
-                Path(github_cache_filename).read_text(encoding="utf-8")
+            loaded_code_platforms = json.loads(
+                Path(code_platforms_cache_filename).read_text(encoding="utf-8")
             )
             if (
-                not isinstance(loaded_github, dict)
-                or not loaded_github
-                or "profile" not in loaded_github
+                not isinstance(loaded_code_platforms, dict)
+                or not loaded_code_platforms
+                or "profile" not in loaded_code_platforms
             ):
-                raise ValueError("Cached GitHub data is invalid or empty")
-            github_data = loaded_github
-            github_cache_loaded = True
+                raise ValueError("Cached code-platform data is invalid or empty")
+            github_data = loaded_code_platforms
+            code_platforms_cache_loaded = True
         except Exception as e:
-            print(f"⚠️ Warning: Invalid GitHub cache file {github_cache_filename}: {e}")
-            print("Ignoring GitHub cache and refetching...")
+            print(f"⚠️ Warning: Invalid code-platform cache file {code_platforms_cache_filename}: {e}")
+            print("Ignoring code-platform cache and refetching...")
             try:
-                os.remove(github_cache_filename)
+                os.remove(code_platforms_cache_filename)
             except Exception as delete_err:
                 print(
-                    f"Failed to delete invalid GitHub cache file {github_cache_filename}: {delete_err}"
+                    f"Failed to delete invalid code-platform cache file {code_platforms_cache_filename}: {delete_err}"
                 )
 
-    if not github_cache_loaded:
-        # Add validation to handle None values
+    if not code_platforms_cache_loaded:
+        # Fetch GitHub + Gitee in one unified call. The orchestrator
+        # only fetches platforms whose URL is present in resume.basics.profiles.
         profiles = []
         if resume_data and hasattr(resume_data, "basics") and resume_data.basics:
             profiles = resume_data.basics.profiles or []
-        github_profile = find_profile(profiles, "Github")
 
-        if github_profile:
+        has_code_platform_profile = any(
+            isinstance(p, dict)
+            and (
+                "github.com" in (p.get("url") or "").lower()
+                or "gitee.com" in (p.get("url") or "").lower()
+            )
+            for p in profiles
+        )
+
+        if has_code_platform_profile:
             print(
-                f"Fetching GitHub data"
+                f"Fetching code-platform data (GitHub + Gitee)"
                 + (
-                    " and caching to " + github_cache_filename
+                    " and caching to " + code_platforms_cache_filename
                     if DEVELOPMENT_MODE
                     else ""
                 )
             )
-            github_data = fetch_and_display_github_info(
-                github_profile.url, position_title=role.position_title
+            github_data = fetch_code_platform_data(
+                resume_data.basics if resume_data else None,
+                position_title=role.position_title,
             )
 
             if (
@@ -321,8 +331,8 @@ def main(resume_path, role: Role):
                 and isinstance(github_data, dict)
                 and "profile" in github_data
             ):
-                os.makedirs(os.path.dirname(github_cache_filename), exist_ok=True)
-                Path(github_cache_filename).write_text(
+                os.makedirs(os.path.dirname(code_platforms_cache_filename), exist_ok=True)
+                Path(code_platforms_cache_filename).write_text(
                     json.dumps(github_data, indent=2, ensure_ascii=False),
                     encoding="utf-8",
                 )

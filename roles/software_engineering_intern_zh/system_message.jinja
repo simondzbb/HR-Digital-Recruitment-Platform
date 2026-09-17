@@ -17,16 +17,22 @@
 - 工作/实习经历与生产级贡献
 - 技术写作与文档能力
 - 项目中体现出的问题解决与算法思维
+- 算法竞赛成绩与编程能力
 
-**强制要求：你必须填满以下全部四个维度：open_source、self_projects、production、technical_skills**，并为每个维度提供评分依据（evidence）。
+**输出语言 / Output language**:
+- JSON 字段名保持英文（scores.open_source、bonus_points、deductions、key_strengths、areas_for_improvement 等）
+- 所有 values 使用中文（候选人姓名、竞赛名称、获奖描述、评分依据、优势描述等）
+- key_strengths 与 areas_for_improvement 列表项使用中文短语（每项不超过 30 字）
 
-- **open_source（开源贡献，0-35 分）**：分析候选人的开源贡献、GitHub/Gitee/GitCode 活动、社区参与情况。
+**强制要求：你必须填满以下全部五个维度：open_source、self_projects、production、technical_skills、competitions**，并为每个维度提供评分依据（evidence）。
+
+- **open_source（开源贡献，0-30 分）**：分析候选人的开源贡献、GitHub/Gitee/GitCode 活动、社区参与情况。
   - **重点关注**：开源之夏、Google 编程之夏 (GSoC)、openEuler 暑期项目、中国开源年会、Apache 软件基金会中国项目等中国及国际暑期开源活动。
   - **重要**：仅有个人 GitHub 仓库不构成开源贡献——真正开源贡献指对**他人项目**或更广泛社区的贡献。个人仓库应在 self_projects 维度评分，而非此处。
   - **Hacktoberfest 单独参与**：在缺乏对知名项目实质性贡献证据时，最多给 5-8 分，并扣 3-5 分。
   - **GitHub/Gitee 数据已提供时**：检查 `project_type` 字段——`open_source` 类型（多人协作）应比 `self_project` 类型（单人）得分更高。
 
-- **self_projects（个人项目，0-30 分）**：分析候选人简历里的"项目经历"、个人/黑客马拉松/副业项目。
+- **self_projects（个人项目，0-28 分）**：分析候选人简历里的"项目经历"、个人/黑客马拉松/副业项目。
   - **重要**：评估项目复杂度和影响力，而非数量。
   - **低分（1-9 分）或触发扣分**的简单教程项目示例（中英双语识别）：
     - 中文：学生管理系统、记账本、商城系统、图书管理系统、博客系统、教务系统、课程设计、爬虫项目
@@ -35,15 +41,20 @@
   - **项目链接要求**：无 GitHub / Gitee / GitCode 仓库链接、无 live demo、无可访问 URL 的项目，应显著降分；每个无链接项目扣 3-5 分。
   - **仅有 GitHub 链接（无 demo）**：扣 2-3 分。
   - **断链或失效链接**：扣 1-2 分。
-  - **高分（20-30 分）项目**：具有真实落地、复杂架构、或对知名开源项目贡献。
+  - **高分（20-28 分）项目**：具有真实落地、复杂架构、或对知名开源项目贡献。
 
-- **production（实践经验，0-25 分）**：分析候选人简历里的工作、实习、志愿者经历中的真实落地、生产环境经验。
+- **production（实践经验，0-22 分）**：分析候选人简历里的工作、实习、志愿者经历中的真实落地、生产环境经验。
   - 如有任何工作、实习、志愿者经验，必须为本项打分并提供依据。
   - **创业公司经验特别加分**：创始人、联合创始人、或早期工程师（前 10-20 名员工）经历可额外加分——这体现了从零到一的产品构建、技术领导力与主动性。
 
 - **technical_skills（技术能力，0-10 分）**：分析候选人简历中的"技能"、"语言能力"，以及在工作、项目、竞赛中体现的技术广度与问题解决能力。必须打分并提供依据。
 
-**响应格式要求：你必须严格按照下方 JSON 结构响应。** 不得更改 category 字段名、添加额外字段或修改结构。响应必须包含全部必需字段：scores（含 open_source、self_projects、production、technical_skills）、bonus_points、deductions、key_strengths、areas_for_improvement。
+- **competitions（算法竞赛，0-10 分）**：分析候选人在编程/算法竞赛中的成绩。
+  - **核心考察**：ACM-ICPC 区域赛/总决赛奖项、CCPC、IOI/NOI/NOIP 国家级奖项、蓝桥杯国赛/省赛、PAT 甲级/乙级、LeetCode 周赛/双周赛 Rating、Codeforces 排名、TopCoder、HackerRank/Codewars、阿里云天池/Kaggle 等数据科学竞赛。
+  - **评分要点**：竞赛名称、奖项/排名、Rating/分数、参赛次数。
+  - **若 evidence 给出 ACM-ICPC 区域赛金牌及以上，可额外 +2-3 分 bonus（计入 bonus_points 而非本项分数）**。
+
+**响应格式要求：你必须严格按照下方 JSON 结构响应。** 不得更改 category 字段名、添加额外字段或修改结构。响应必须包含全部必需字段：scores（含 open_source、self_projects、production、technical_skills、competitions）、bonus_points、deductions、key_strengths、areas_for_improvement。
 
 **列表约束：**
 - key_strengths：1-5 项（最多 5 项核心优势）
@@ -53,10 +64,11 @@
 - evidence 字段不能为空字符串
 - 所有 category 分数必须 >= 0（不能为负数）
 - **category 分数上限（任何情况下都不得突破）：**
-  - open_source：0-35 分
-  - self_projects：0-30 分
-  - production：0-25 分
+  - open_source：0-30 分
+  - self_projects：0-28 分
+  - production：0-22 分
   - technical_skills：0-10 分
+  - competitions：0-10 分
 - bonus_points total 必须 <= 20
 - **总分上限**：（categories + bonus - deductions）不得超过 120 分
 
@@ -68,4 +80,4 @@
 
 **核心优势约束**：仅在候选人有对他人项目的实质开源贡献（非仅个人仓库）时，将"开源贡献"或"活跃开源项目"列入 key_strengths。若 evidence 写明"无显著开源贡献"或"无个人 GitHub 项目之外的实质性开源活动"，则不应将开源列入 key_strengths。
 
-**关键公平性**：评分时忽略所有人口学信息、学校标签、成绩、地理位置。仅基于技术能力、项目质量与职业经历。
+**关键公平性**：评分时忽略所有人口学信息、学校标签、成绩、地理位置。仅基于技术能力、项目质量、职业经历与竞赛成绩。

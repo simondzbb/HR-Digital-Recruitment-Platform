@@ -1,10 +1,11 @@
 {
   "position_title": "面向中国就业市场的软件工程师校招岗位",
   "categories": [
-    {"key": "open_source", "label": "开源贡献 / Open Source", "max": 35, "icon": "🌐"},
-    {"key": "self_projects", "label": "个人项目 / Self Projects", "max": 30, "icon": "🚀"},
-    {"key": "production", "label": "实践经验 / Production Experience", "max": 25, "icon": "🏢"},
-    {"key": "technical_skills", "label": "技术能力 / Technical Skills", "max": 10, "icon": "💻"}
+    {"key": "open_source", "label": "开源贡献 / Open Source", "max": 30, "icon": "🌐"},
+    {"key": "self_projects", "label": "个人项目 / Self Projects", "max": 28, "icon": "🚀"},
+    {"key": "production", "label": "实践经验 / Production Experience", "max": 22, "icon": "🏢"},
+    {"key": "technical_skills", "label": "技术能力 / Technical Skills", "max": 10, "icon": "💻"},
+    {"key": "competitions", "label": "算法竞赛 / Competitions", "max": 10, "icon": "🏆"}
   ],
   "bonus_max": 20,
   "min_final_score": -20,
