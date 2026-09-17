@@ -1,0 +1,110 @@
+你正在评估一份面向**中国就业市场**的**软件工程师校招岗位**的简历。请基于以下评分标准分析简历内容，并给出 JSON 响应。
+
+**强制要求：你必须填满以下全部四个维度：open_source、self_projects、production、technical_skills**。
+
+## 评分标准 / SCORING CRITERIA
+
+### 开源贡献 / Open Source（0-35 分）
+
+**关键判断**：候选人是否对**他人的开源项目**有实质贡献，而不是仅有个人 GitHub 仓库。
+
+- **高分（25-35 分）**：
+  - 对知名开源项目的合并 PR（Apache SkyWalking、Nacos、Seata、Sentinel、ShardingSphere、Spring Cloud Alibaba、Ant Design、Taro、uni-app、Element Plus、HarmonyOS/OpenHarmony、TiDB、TDengine、openEuler、Apollo、Dubbo 等中国生态项目）
+  - 国际知名项目贡献（React、Vue、Angular、Node.js、Express、Django、Flask、TensorFlow、PyTorch、Kubernetes、Docker、VS Code 等）
+  - 多次被合并的 PR、维护者推荐、issue 回复历史
+- **中等（10-24 分）**：
+  - 参与过开源之夏、Google 编程之夏 (GSoC)、openEuler 暑期项目等暑期开源项目
+  - 对中型项目（100-999 stars）有 4 次以上合并贡献
+- **低分（0-9 分）**：
+  - 仅个人 GitHub 仓库
+  - Hacktoberfest 单独参与而无实质贡献证据（**强制扣 3-5 分**）
+  - 仅 fork 项目无后续提交
+
+**中国生态代表性开源项目**（同样视为高质量贡献）：
+Apache SkyWalking、Apache Dubbo、Apache Nacos、Apache Seata、Apache ShardingSphere、Apache RocketMQ、Spring Cloud Alibaba、Ant Design、Taro、uni-app、Element Plus、Vue、Vite、Rollup、HarmonyOS/OpenHarmony、openEuler、openHarmony、TiDB、TDengine、Apollo（携程）、AntV（蚂蚁）、Ant Design Mobile、NutUI、ByteDance DevTools、字节青训营项目
+
+### 个人项目 / Self Projects（0-30 分）
+
+**关键判断**：项目复杂度与真实落地，而非项目数量。
+
+- **低分（1-9 分）** 或触发扣分的**简单教程项目示例**（中英双语识别）：
+  - **中文**：学生管理系统、记账本、商城系统、图书管理系统、博客系统、教务系统、课程设计、爬虫项目、Hello World 类小程序、毕设级别的图书/选课系统
+  - **英文**：Todo list、Calculator、Basic CRUD apps、Weather apps、Note-taking apps、Recipe apps、Exercise/health apps
+- **基础 CRUD 应用 → 0 分**（无差异化创新）
+- **中等（10-19 分）**：
+  - 单一领域内中等复杂度的项目（带数据库、用户认证、API 设计）
+  - 完整的全栈应用（有多个功能模块）
+- **高分（20-30 分）**：
+  - 复杂项目（实时通信、微服务架构、机器学习/AI 应用、移动端原生应用）
+  - 有真实落地（上线、被使用、有具体下载量/UV/PV 数据）
+  - 对知名开源项目有贡献
+  - 解决特定行业痛点的项目
+
+**项目链接要求**：
+- 无任何 GitHub/Gitee/GitCode 链接或 live demo → 扣 3-5 分/项目
+- 仅有 GitHub 链接（无 demo） → 扣 2-3 分/项目
+- 断链或失效链接 → 扣 1-2 分/项目
+
+### 实践经验 / Production Experience（0-25 分）
+
+- 实习经历（外企、国企、私企、独角兽、创业公司均可）
+- 真实生产环境部署经验
+- 团队协作经验（Git 协作、Code Review、CI/CD）
+- **创业公司特别加分**：创始人、联合创始人、早期工程师（前 10-20 名员工）
+- 志愿者经历（如参与开源项目运营、技术社区运营）也可计入
+
+### 技术能力 / Technical Skills（0-10 分）
+
+- 编程语言掌握广度与深度
+- 算法竞赛经历（ACM、蓝桥杯、PAT、LeetCode 周赛/双周赛排名、Codeforces 排名）
+- 技术栈广度
+- 软考证书（软件设计师、系统架构师等）、CET-4/6、PMP 等证书
+- 自学能力（在线课程、技术书籍）
+
+## 加分项 / BONUS POINTS（最多 20 分）
+
+- **+5 分**：开源之夏 / Google 编程之夏 (GSoC) 参与并完成
+- **+3-5 分**：中国开源年会 / openEuler 暑期项目 / Apache 软件基金会中国项目 / Open Source Day 主讲
+- **+3-5 分**：创业公司创始人/联合创始人/早期工程师（前 10-20 名员工）
+- **+2-3 分**：知名开源项目核心维护者、PMC Member、Committer
+- **+2-3 分**：ACM 区域赛金牌、Codeforces 红色/橙色排名、LeetCode Rating 2400+、蓝桥杯国赛一等奖
+- **+2 分**：个人作品集网站（GitHub Pages / Gitee Pages / 个人域名）
+- **+2 分**：拥有个人技术博客且定期更新（掘金/CSDN/知乎/SegmentFault/个人博客）
+- **+1-2 分**：包含任一中文技术社区账号（Gitee/CSDN/掘金/知乎/Bilibili/GitCode/OSChina/Cnblogs/牛客）并有实质内容
+- **+1 分**：软考中级（软件设计师等）/ PMP / AWS 认证 / 阿里云 ACP 等专业证书
+- **+1 分**：开源项目 GitHub Stars > 100 的个人项目
+
+## 扣分项 / DEDUCTIONS（最低 -20 分）
+
+- **-3 至 -5 分**：仅有简单教程项目（学生管理系统、记账本等），且无其他有深度内容
+- **-3 至 -5 分/项**：项目无任何 GitHub/Gitee/GitCode 链接或 live demo（难以验证、缺乏透明度）
+- **-2 至 -3 分/项**：仅有 GitHub 链接但无 live demo
+- **-3 至 -5 分**：仅有 Hacktoberfest 参与而无其他实质性开源贡献
+- **-2 分**：简历存在明显夸大、不一致或可疑信息
+- **-1 至 -2 分**：项目命名过于通用（Calculator、Todo App、Weather App、学生管理系统、商城系统等）
+- **-1 分/项**：日期格式不规范、信息缺失严重（如项目无日期、教育无时间）
+
+## 关键要求 / CRITICAL REQUIREMENTS
+
+1. **必须只返回下方指定的 JSON 结构**，不要包含任何解释性文本
+2. **必须填满全部四个 category 分数**
+3. **必须为每个分数提供 evidence（评分依据）**，evidence 字段不能为空
+
+请基于下方简历文本，按上述 EXACT 结构给出 JSON 响应：
+
+{
+    "scores": {
+        "open_source": {"score": 0, "max": 35, "evidence": "评分依据"},
+        "self_projects": {"score": 0, "max": 30, "evidence": "评分依据"},
+        "production": {"score": 0, "max": 25, "evidence": "评分依据"},
+        "technical_skills": {"score": 0, "max": 10, "evidence": "评分依据"}
+    },
+    "bonus_points": {"total": 0, "breakdown": "加分项明细"},
+    "deductions": {"total": 0, "reasons": "扣分项原因"},
+    "key_strengths": ["优势1", "优势2"],
+    "areas_for_improvement": ["待提升方向1"]
+}
+
+待评估简历：
+
+{{ text_content }}

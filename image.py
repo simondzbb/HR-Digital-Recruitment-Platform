@@ -93,13 +93,17 @@ def extract_text_from_image(path: str) -> Optional[str]:
             img = ImageOps.exif_transpose(img).convert("RGB")
 
             try:
-                raw = pytesseract.image_to_string(img, lang="eng")
+                raw = pytesseract.image_to_string(img, lang="chi_sim+eng")
             except pytesseract.TesseractNotFoundError:
                 logger.error(
                     "Tesseract binary not found on PATH. "
                     "Install Tesseract OCR (e.g. `apt install tesseract-ocr`, "
-                    "`brew install tesseract`) and ensure the `eng` language "
-                    "pack is present. See README."
+                    "`brew install tesseract`) and ensure BOTH language "
+                    "packs are present for Chinese + English OCR: "
+                    "`tesseract-ocr-chi-sim` and `tesseract-ocr-eng` "
+                    "(Linux); `tesseract-lang` (macOS, includes chi_sim); "
+                    "UB Mannheim Windows build with `chi_sim` selected. "
+                    "See README."
                 )
                 return None
 

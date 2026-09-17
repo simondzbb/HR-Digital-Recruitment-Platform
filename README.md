@@ -149,7 +149,7 @@ Hiring Agent parses a resume file (PDF, DOCX, DOC, or image) to Markdown, extrac
 | `.pdf` | PyMuPDF | none (wheel ships native lib) |
 | `.docx` | python-docx | none |
 | `.doc` (legacy Word) | LibreOffice headless → PyMuPDF | LibreOffice 7+ |
-| `.png`, `.jpg`, `.jpeg` | Tesseract OCR (pytesseract + Pillow) | Tesseract 5+ with `eng` language pack |
+| `.png`, `.jpg`, `.jpeg` | Tesseract OCR (pytesseract + Pillow) | Tesseract 5+ with `eng` language pack; for **Chinese** resumes, also install `chi_sim` (Simplified Chinese). |
 | `.tif`, `.tiff` | Tesseract OCR (first frame only) | same as above |
 
 Install the extras you need:
@@ -160,9 +160,9 @@ Install the extras you need:
 - Windows: download from <https://www.libreoffice.org/download/> and ensure `soffice.exe` is on `PATH`
 
 **Tesseract** (only required for image OCR)
-- Debian/Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-eng`
-- macOS: `brew install tesseract tesseract-lang`
-- Windows: download the UB Mannheim build from <https://github.com/UB-Mannheim/tesseract/wiki> and add `tesseract.exe` to `PATH`
+- Debian/Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-eng tesseract-ocr-chi-sim` (the `chi-sim` pack enables Simplified Chinese OCR; without it, image resumes containing Chinese characters will not OCR correctly)
+- macOS: `brew install tesseract tesseract-lang` (the `tesseract-lang` formula already includes `chi_sim`)
+- Windows: download the UB Mannheim build from <https://github.com/UB-Mannheim/tesseract/wiki>, during installation select **both** `chi_sim` (Simplified Chinese) and `eng` language data, and add `tesseract.exe` to `PATH`
 
 If a required system dependency is missing, the CLI prints a clear error such as:
 
@@ -283,6 +283,39 @@ You can leave it on during iteration. See the next section for details.
 
 ---
 
+## Chinese Market Usage / 中文市场使用
+
+The shipped `software_engineering_intern_zh` role scores Chinese-market resumes end to end:
+
+```bash
+$ python score.py ./resume/张三简历.pdf --role software_engineering_intern_zh
+```
+
+What the Chinese role does differently from the English one:
+
+- **Date parsing** — accepts `2020.01 - 至今`, `2020年1月 - 2021年6月`, `2020/09 - 2024/06`, etc.; output is normalized to `YYYY-MM` in both `cache/` JSON and CSV.
+- **Education parsing** — recognizes `本科 / 硕士 / 博士 / 大专 / MBA`; pulls `均分 / 成绩 / GPA / 排名` into the `score` field.
+- **Project tech-list parsing** — splits on Chinese enumeration comma `、` and other Chinese separators, in addition to `|` / `,`.
+- **Profile platforms** — recognizes `gitee.com`, `gitcode.com`, `zhihu.com`, `juejin.cn`, `csdn.net`, `bilibili.com`, `nowcoder.cn`, `oschina.net`, `cnblogs.com`, `segmentfault.com` in addition to the international ones.
+- **Resume field fallbacks** — if the LLM emits Chinese-keyed JSON (`工作经历`, `教育经历`, `荣誉奖项`, etc.), the transform layer still recovers the data.
+- **OCR** — `image.py` uses `lang="chi_sim+eng"` so image resumes containing Chinese characters OCR correctly (requires the `chi_sim` Tesseract language pack).
+- **Scoring rubric** — Chinese equivalents are weighted: `开源之夏 / Google编程之夏 (GSoC)`, `openEuler 暑期项目`, `中国开源年会`, Chinese-ecosystem OSS projects (Apache SkyWalking, Nacos, Seata, Ant Design, Taro, uni-app, HarmonyOS, TiDB, TDengine, openEuler, etc.). The bonus for having a portfolio/LinkedIn is replaced with a presence of any Chinese tech community account (Gitee / CSDN / 掘金 / 知乎 / Bilibili / GitCode).
+- **Output report** — `print_evaluation_results` prints bilingual headers (English label / 中文标签), and category labels come from `role.json` (e.g. `🌐 开源贡献 / Open Source`).
+
+The English role (`software_engineering_intern`) is unchanged and works exactly as before.
+
+**Required setup for image OCR of Chinese resumes:**
+
+Tesseract must have the `chi_sim` language pack installed:
+
+- Debian/Ubuntu: `sudo apt install tesseract-ocr-chi-sim`
+- macOS: `brew install tesseract-lang` (already includes `chi_sim`)
+- Windows: UB Mannheim build, tick `chi_sim` during install
+
+Without `chi_sim`, image resumes containing Chinese characters will OCR as empty/garbled. The CLI prints a clear error if Tesseract is missing entirely.
+
+---
+
 ## CLI usage
 
 ### End to end scoring
@@ -362,7 +395,11 @@ role directory instead.
 ├── requirements.txt
 ├── roles.py
 ├── roles/
-│   └── software_engineering_intern/
+│   ├── software_engineering_intern/
+│   │   ├── role.json
+│   │   ├── criteria.jinja
+│   │   └── system_message.jinja
+│   └── software_engineering_intern_zh/   # Chinese-market variant
 │       ├── role.json
 │       ├── criteria.jinja
 │       └── system_message.jinja

@@ -1,4 +1,7 @@
-Extract ONLY the work experience from this resume.
+Extract ONLY the work experience / 工作经历 from this resume. **Bilingual support / 双语**: 适用于中英文简历。
+
+**Section heading hints / 小节标题提示词** — the work-experience block may appear under any of:
+- 工作经历 / 工作经验 / 实习经历 / 项目经历 / Work Experience / Professional Experience / Employment History
 
 --- The input markdown starts here ---
 
@@ -10,27 +13,36 @@ Return ONLY a JSON object with this structure:
 {
   "work": [
     {
-      "name": "Company name",
-      "position": "Job title", 
-      "startDate": "Start date (YYYY-MM)",
-      "endDate": "End date (YYYY-MM) or 'Present'",
-      "summary": "Job description",
-      "highlights": ["Achievement 1", "Achievement 2"]
+      "name": "Company name / 公司名称",
+      "position": "Job title / 职位",
+      "startDate": "Start date (YYYY-MM) / 开始日期",
+      "endDate": "End date (YYYY-MM) or 'Present' / 结束日期或'至今'",
+      "summary": "Job description / 工作描述",
+      "highlights": ["Achievement 1 / 成就1", "Achievement 2 / 成就2"]
     }
   ]
 }
 
-**IMPORTANT**: 
+**IMPORTANT**:
 
-For date extraction, follow these rules carefully:
+For date extraction, follow these rules carefully / 日期解析规则:
 
-1. Look for date ranges in the work experience section. These often appear as "Start – End" or "Start - End" format.
-2. Date ranges can be separated by any of these characters: hyphen "-", en dash "–", em dash "—", or the word "to".
-3. Carefully extract both the start and end dates from these ranges.
-4. If a position is current/ongoing, the end date may be indicated by words like "Present", "Current", "Now", "Ongoing", etc.
-5. Look for dates near position titles or company names
-6. Dates might be formatted as "Month Year" or "MM/YYYY" or other variations
-7. If dates appear as "Month Year - Month Year", extract both parts
-8. If only years are provided (e.g., "2019-2021"), use the year information only
+1. Look for date ranges in the work experience section / 工作经历小节. These often appear as "Start – End" or "Start - End" format.
+2. Date ranges can be separated by any of these characters / 日期范围分隔符: hyphen `-`, en dash `–`, em dash `—`, tilde `~`, or the words `to`, `至`, `到`.
+4. Carefully extract both the start and end dates from these ranges / 仔细提取开始与结束日期。
+5. If a position is current/ongoing, the end date may be indicated by any of these bilingual tokens / 当前/在职状态的结束日期可能是以下中英双语关键词之一:
+   - "Present", "Current", "Now", "Ongoing"
+   - "至今", "目前", "现在", "当下", "在读", "在岗"
+6. Look for dates near position titles or company names / 在职位或公司名附近查找日期。
+7. Dates may appear in any of these formats / 日期格式多样:
+   - "Month Year" (English, e.g. "Jan 2020")
+   - "MM/YYYY" (e.g. "01/2020")
+   - "YYYY-MM" (ISO, e.g. "2020-01")
+   - "YYYY.MM" (Chinese, e.g. "2020.01")
+   - "YYYY/MM" (e.g. "2020/01")
+   - "YYYY年MM月" (Chinese, e.g. "2020年1月")
+8. If dates appear as "YYYY.MM - YYYY.MM", extract both parts / 完整提取两端日期。
+10. If only years are provided (e.g., "2019-2021"), use the year information only / 仅年份时使用年份信息。
+11. Normalize ALL output dates to YYYY-MM format / 所有输出日期统一为 YYYY-MM 格式 (e.g. "2020-01")。
 
-**IMPORTANT**: Return ONLY valid JSON. Do not include any explanatory text. 
+**IMPORTANT**: Return ONLY valid JSON. Do not include any explanatory text.

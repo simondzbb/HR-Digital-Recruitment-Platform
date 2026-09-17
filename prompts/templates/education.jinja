@@ -1,4 +1,7 @@
-Extract ONLY the education information from this resume.
+Extract ONLY the education information / 教育经历 from this resume. **Bilingual support / 双语**: 适用于中英文简历。
+
+**Section heading hints / 小节标题提示词** — the education block may appear under any of:
+- 教育经历 / 教育背景 / 学历 / Education / Educational Background / Academic Background
 
 --- The input markdown starts here ---
 
@@ -10,14 +13,20 @@ Return ONLY a JSON object with this structure:
 {
   "education": [
     {
-      "institution": "School/University name",
-      "area": "Field of study",
-      "studyType": "Degree type",
-      "startDate": "Start date (YYYY-MM)",
-      "endDate": "End date (YYYY-MM)",
-      "score": "GPA/Percentage"
+      "institution": "School/University name / 学校名称",
+      "area": "Field of study / 专业",
+      "studyType": "Degree type / 学历",
+      "startDate": "Start date (YYYY-MM) / 开始日期",
+      "endDate": "End date (YYYY-MM) / 结束日期",
+      "score": "Grade / 成绩 (GPA / 均分 / 百分制 / 排名 / Percentage — 均可)"
     }
   ]
 }
 
-**IMPORTANT**: Return ONLY valid JSON. Do not include any explanatory text. 
+**IMPORTANT / 重要提示**:
+
+- For studyType / 学历, use one of these canonical values (Chinese or English): 高中 / 大专 / 本科 / 硕士 / 博士 / MBA / High School / Associate / Bachelor / Master / Ph.D / M.S / B.S / B.E / M.B.A.
+- For area / 专业, extract the major / 主修专业.
+- For score / 成绩, accept any of: GPA (4.0/5.0), 均分 (百分制), percentage, class ranking, 排名, 绩点. If none provided, use null.
+
+**IMPORTANT**: Return ONLY valid JSON. Do not include any explanatory text.

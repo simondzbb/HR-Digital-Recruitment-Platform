@@ -50,13 +50,19 @@ logging.basicConfig(
 def print_evaluation_results(
     evaluation, role: Role, candidate_name: str = "Candidate"
 ):
-    """Print evaluation results in a readable format."""
+    """Print evaluation results in a readable format.
+
+    Output is bilingual (English label / 中文标签) so both English and
+    Chinese role reports look natural. Category labels come from
+    ``role.json`` and already include both languages when the role is
+    the Chinese variant.
+    """
     print("\n" + "=" * 80)
-    print(f"📊 RESUME EVALUATION RESULTS FOR: {candidate_name}")
+    print(f"📊 RESUME EVALUATION RESULTS / 简历评估结果: {candidate_name}")
     print("=" * 80)
 
     if not evaluation:
-        print("❌ No evaluation data available")
+        print("❌ No evaluation data available / 暂无评估数据")
         return
 
     # Calculate overall score
@@ -72,7 +78,7 @@ def print_evaluation_results(
             # Log warning if score was capped
             if category_score < category_data["score"]:
                 print(
-                    f"⚠️  Warning: {category_name} score capped from {category_data['score']} to {category_score} (max: {category_data['max']})"
+                    f"⚠️  Warning / 警告: {category_name} score capped from {category_data['score']} to {category_score} (max: {category_data['max']})"
                 )
 
     # Add bonus points
@@ -87,13 +93,13 @@ def print_evaluation_results(
     max_possible_score = max_score + role.bonus_max
     if total_score > max_possible_score:
         total_score = max_possible_score
-        print(f"⚠️  Warning: Total score capped at maximum possible value")
+        print(f"⚠️  Warning / 警告: Total score capped at maximum possible value / 总分已封顶")
 
     # Overall Score
-    print(f"\n🎯 OVERALL SCORE: {total_score:.1f}/{max_score}")
+    print(f"\n🎯 OVERALL SCORE / 综合评分: {total_score:.1f}/{max_score}")
 
     # Detailed Scores
-    print("\n📈 DETAILED SCORES:")
+    print("\n📈 DETAILED SCORES / 详细评分:")
     print("-" * 60)
 
     if hasattr(evaluation, "scores") and evaluation.scores:
@@ -103,12 +109,12 @@ def print_evaluation_results(
                 continue
             capped_score = min(cat_score.score, category.max)
             print(f"{category.icon} {category.label}: {capped_score}/{cat_score.max}")
-            print(f"   Evidence: {cat_score.evidence}")
+            print(f"   Evidence / 评分依据: {cat_score.evidence}")
             print()
 
     # Bonus Points
     if hasattr(evaluation, "bonus_points") and evaluation.bonus_points:
-        print(f"\n⭐ BONUS POINTS: {evaluation.bonus_points.total}")
+        print(f"\n⭐ BONUS POINTS / 加分项: {evaluation.bonus_points.total}")
         print("-" * 30)
         print(f"   {evaluation.bonus_points.breakdown}")
 
@@ -118,14 +124,14 @@ def print_evaluation_results(
         and evaluation.deductions
         and evaluation.deductions.total > 0
     ):
-        print(f"\n⚠️  DEDUCTIONS: -{evaluation.deductions.total}")
+        print(f"\n⚠️  DEDUCTIONS / 扣分项: -{evaluation.deductions.total}")
         print("-" * 30)
         if evaluation.deductions.reasons:
             print(f"   {evaluation.deductions.reasons}")
 
     # Key Strengths
     if hasattr(evaluation, "key_strengths") and evaluation.key_strengths:
-        print(f"\n✅ KEY STRENGTHS:")
+        print(f"\n✅ KEY STRENGTHS / 核心优势:")
         print("-" * 30)
         for i, strength in enumerate(evaluation.key_strengths, 1):
             print(f"  {i}. {strength}")
@@ -135,7 +141,7 @@ def print_evaluation_results(
         hasattr(evaluation, "areas_for_improvement")
         and evaluation.areas_for_improvement
     ):
-        print(f"\n🔧 AREAS FOR IMPROVEMENT:")
+        print(f"\n🔧 AREAS FOR IMPROVEMENT / 待提升方向:")
         print("-" * 30)
         for i, area in enumerate(evaluation.areas_for_improvement, 1):
             print(f"  {i}. {area}")

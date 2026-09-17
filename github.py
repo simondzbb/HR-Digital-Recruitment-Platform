@@ -124,7 +124,7 @@ def extract_github_username(github_url: str) -> Optional[str]:
         r"https?://github\.com/([^/]+)",
         r"github\.com/([^/]+)",
         r"@([^/]+)",
-        r"^([a-zA-Z0-9-]+)$",
+        r"^([a-zA-Z0-9\-_一-龥]+)$",
     ]
 
     for pattern in patterns:

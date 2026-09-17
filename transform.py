@@ -1,6 +1,164 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+import re
 import pdb
 from models import JSONResume
+
+
+# ---------------------------------------------------------------------------
+# Chinese-market localization helpers
+# ---------------------------------------------------------------------------
+
+# Bilingual tokens that mean "this position is current" — used in date
+# parsing so a Chinese resume saying "2020.01 - 至今" produces the same
+# "Present" sentinel that an English resume saying "Jan 2020 - Present" does.
+CURRENT_POSITION_TOKENS = {
+    "present", "current", "now", "ongoing",
+    "至今", "目前", "现在", "当下", "在读", "在岗",
+}
+
+# Chinese-language educational degree keywords, ordered by descending priority
+# (most specific first). Used by _classify_study_type to extract the degree
+# type out of a free-form Chinese education string.
+_CN_STUDY_TYPE_KEYWORDS = [
+    "博士", "硕士", "研究生",
+    "本科", "学士",
+    "大专", "专科",
+    "高中", "MBA",
+]
+
+# English-language equivalents (kept so the existing English-only path
+# still works).
+_EN_STUDY_TYPE_KEYWORDS = [
+    "Ph.D", "M.S", "M.A", "M.B.A", "B.S", "B.E",
+    "Bachelor", "Master", "Doctor", "Associate", "High School",
+]
+
+
+# Separators accepted by _split_technologies. Order matters: the more
+# specific separators (Chinese enumeration comma) come first so that a
+# string like "Python、Java" splits as expected rather than failing to
+# find ",". The legacy English "," is the last entry so plain-English
+# resumes keep working as before.
+TECH_SEPARATORS = ["|", "、", "，", ";", "；", "和", "与", "&", "+", "/", ","]
+
+
+def _get(parsed_data: Dict, *keys: str):
+    """Look up the first non-empty value across a list of candidate keys.
+
+    Used to make every section lookup resilient to the LLM emitting a
+    Chinese-keyed payload (e.g. ``"工作经历"``) instead of the canonical
+    English key (``"work"``). Returns an empty list (or None) if none of
+    the keys are present or all values are falsy.
+    """
+    for k in keys:
+        if k in parsed_data:
+            v = parsed_data[k]
+            if v:
+                return v
+    return []
+
+
+def _classify_study_type(text: str) -> Tuple[str, str]:
+    """Split a free-form degree string into ``(studyType, area)``.
+
+    Works for both Chinese (``本科 计算机科学`` or
+    ``计算机科学（本科）``) and English (``B.S., Computer Science``).
+    Returns ``("其他", original_text)`` if nothing matches.
+    """
+    if not text:
+        return "其他", ""
+
+    for kw in _CN_STUDY_TYPE_KEYWORDS:
+        if kw in text:
+            area = text.replace(kw, "").strip(" ,，()（）:：")
+            return kw, area or ""
+
+    for kw in _EN_STUDY_TYPE_KEYWORDS:
+        if kw in text:
+            area = text.replace(kw, "").strip(" ,().")
+            return kw, area or ""
+
+    return "其他", text.strip()
+
+
+def _split_technologies(s: str) -> List[str]:
+    """Split a technology string using any supported separator.
+
+    Tries separators in ``TECH_SEPARATORS`` order — the first one present
+    in the string wins. Strips whitespace and discards empty pieces.
+    """
+    if not s:
+        return []
+    for sep in TECH_SEPARATORS:
+        if sep in s:
+            return [t.strip() for t in s.split(sep) if t.strip()]
+    return [s.strip()]
+
+
+# Year-month pair regex. Matches:
+#   2020年1月, 2020年12月, 2020.01, 2020.12, 2020/1, 2020-1, 202001, 2020
+_YM_PATTERN = re.compile(
+    r"(\d{4})"               # year (4 digits)
+    r"(?:"
+    r"[\.\-/年](\d{1,2})?"   # optional separator + 1-2 digit month
+    r"(?:月)?"               # optional Chinese 月
+    r")?"
+)
+# Separator between start and end dates inside a range string.
+_RANGE_SEP = re.compile(r"[\s]*[-—–~到至][\s]*")
+
+
+def _parse_single_date(token: str) -> Optional[str]:
+    """Parse a single date token to ``YYYY-MM`` (or ``None``).
+
+    Accepts: ``2020年1月``, ``2020.01``, ``2020/1``, ``2020-12``,
+    ``202001``, ``2020``, ``Jan 2020``, ``January 2020``.
+    """
+    if not token:
+        return None
+    token = token.strip()
+
+    # English month-name form (e.g. "Jan 2020", "January 2020").
+    en_months = {
+        "jan": 1, "january": 1,
+        "feb": 2, "february": 2,
+        "mar": 3, "march": 3,
+        "apr": 4, "april": 4,
+        "may": 5,
+        "jun": 6, "june": 6,
+        "jul": 7, "july": 7,
+        "aug": 8, "august": 8,
+        "sep": 9, "sept": 9, "september": 9,
+        "oct": 10, "october": 10,
+        "nov": 11, "november": 11,
+        "dec": 12, "december": 12,
+    }
+    en_match = re.match(
+        r"(?i)\s*([A-Za-z]+)\.?\s+(\d{4})\s*$", token
+    )
+    if en_match:
+        month_name = en_match.group(1).lower()
+        if month_name in en_months:
+            month = en_months[month_name]
+            return f"{en_match.group(2)}-{month:02d}"
+
+    # Numeric form (Chinese / ISO / dot / slash variants).
+    ym = _YM_PATTERN.search(token)
+    if ym:
+        year = ym.group(1)
+        month = ym.group(2)
+        if month:
+            return f"{year}-{int(month):02d}"
+        return f"{year}-01"
+    return None
+
+
+def _looks_current(token: str) -> bool:
+    """Return True if ``token`` matches any current-position keyword."""
+    if not token:
+        return False
+    t = token.strip().lower()
+    return t in CURRENT_POSITION_TOKENS
 
 
 def transform_parsed_data(parsed_data: Dict) -> Dict:
@@ -10,29 +168,31 @@ def transform_parsed_data(parsed_data: Dict) -> Dict:
                 transformed = {
                     "basics": transform_basics(parsed_data.get("basics", {})),
                     "work": transform_work_experience(
-                        parsed_data.get(
-                            "work_experience",
-                            parsed_data.get("work", parsed_data.get("experience", [])),
+                        _get(
+                            parsed_data,
+                            "work", "work_experience", "experience",
+                            "工作经历", "工作", "实习经历", "项目经历",
                         )
                     ),
                     "volunteer": transform_organizations(
-                        parsed_data.get("organizations", [])
+                        _get(parsed_data, "organizations", "志愿经历", "志愿者")
                     ),
-                    "education": transform_education(parsed_data.get("education", [])),
+                    "education": transform_education(
+                        _get(parsed_data, "education", "教育经历", "学历", "教育背景")
+                    ),
                     "awards": transform_achievements(
-                        parsed_data.get(
-                            "achievements",
-                            parsed_data.get(
-                                "awards", parsed_data.get("honors_and_awards", [])
-                            ),
+                        _get(
+                            parsed_data,
+                            "awards", "achievements", "honors_and_awards",
+                            "荣誉奖项", "获奖经历", "奖项",
                         )
                     ),
-                    "certificates": parsed_data.get("certificates", []),
-                    "publications": parsed_data.get("publications", []),
+                    "certificates": _get(parsed_data, "certificates", "证书", "资格证书"),
+                    "publications": _get(parsed_data, "publications", "出版物", "论文"),
                     "skills": transform_skills_comprehensive(parsed_data),
-                    "languages": parsed_data.get("languages", []),
-                    "interests": parsed_data.get("interests", []),
-                    "references": parsed_data.get("references", []),
+                    "languages": _get(parsed_data, "languages", "语言能力", "语言"),
+                    "interests": _get(parsed_data, "interests", "兴趣爱好", "兴趣"),
+                    "references": _get(parsed_data, "references", "推荐人"),
                     "projects": transform_projects_comprehensive(parsed_data),
                     "meta": parsed_data.get("meta", {}),
                 }
@@ -40,47 +200,53 @@ def transform_parsed_data(parsed_data: Dict) -> Dict:
                 if "basics" in parsed_data:
                     basics_data = parsed_data.get("basics", parsed_data)
                     transformed = {"basics": transform_basics(basics_data)}
-                elif (
-                    "work" in parsed_data
-                    or "work_experience" in parsed_data
-                    or "experience" in parsed_data
+                elif any(
+                    k in parsed_data
+                    for k in (
+                        "work", "work_experience", "experience",
+                        "工作经历", "工作", "实习经历", "项目经历",
+                    )
                 ):
-                    work_data = parsed_data.get(
-                        "work",
-                        parsed_data.get(
-                            "work_experience", parsed_data.get("experience", [])
-                        ),
+                    work_data = _get(
+                        parsed_data,
+                        "work", "work_experience", "experience",
+                        "工作经历", "工作", "实习经历", "项目经历",
                     )
                     transformed = {"work": transform_work_experience(work_data)}
-                elif "education" in parsed_data:
-                    transformed = {
-                        "education": transform_education(
-                            parsed_data.get("education", [])
-                        )
-                    }
-                elif (
-                    "skills" in parsed_data
-                    or "librariesFrameworks" in parsed_data
-                    or "toolsPlatforms" in parsed_data
-                    or "databases" in parsed_data
+                elif any(
+                    k in parsed_data for k in ("education", "教育经历", "学历", "教育背景")
+                ):
+                    transformed = {"education": transform_education(
+                        _get(parsed_data, "education", "教育经历", "学历", "教育背景")
+                    )}
+                elif any(
+                    k in parsed_data
+                    for k in (
+                        "skills", "librariesFrameworks", "toolsPlatforms", "databases",
+                        "技能", "专业技能", "技术栈",
+                    )
                 ):
                     transformed = {
                         "skills": transform_skills_comprehensive(parsed_data)
                     }
-                elif "projects" in parsed_data or "projectsOpenSource" in parsed_data:
+                elif any(
+                    k in parsed_data
+                    for k in ("projects", "projectsOpenSource", "项目经历", "项目")
+                ):
                     transformed = {
                         "projects": transform_projects_comprehensive(parsed_data)
                     }
-                elif (
-                    "awards" in parsed_data
-                    or "achievements" in parsed_data
-                    or "honors_and_awards" in parsed_data
+                elif any(
+                    k in parsed_data
+                    for k in (
+                        "awards", "achievements", "honors_and_awards",
+                        "荣誉奖项", "获奖经历", "奖项",
+                    )
                 ):
-                    awards_data = parsed_data.get(
-                        "awards",
-                        parsed_data.get(
-                            "achievements", parsed_data.get("honors_and_awards", [])
-                        ),
+                    awards_data = _get(
+                        parsed_data,
+                        "awards", "achievements", "honors_and_awards",
+                        "荣誉奖项", "获奖经历", "奖项",
                     )
                     transformed = {"awards": transform_achievements(awards_data)}
                 else:
@@ -109,6 +275,7 @@ def extract_domain_from_url(url: str) -> str:
 
 def get_network_name(domain: str) -> str:
     domain_mapping = {
+        # international platforms
         "github.com": "GitHub",
         "linkedin.com": "LinkedIn",
         "leetcode.com": "LeetCode",
@@ -118,6 +285,18 @@ def get_network_name(domain: str) -> str:
         "dev.to": "DEV Community",
         "twitter.com": "X",
         "x.com": "X",
+        # Chinese-market platforms
+        "gitee.com": "Gitee",
+        "gitcode.com": "GitCode",
+        "csdn.net": "CSDN",
+        "juejin.cn": "Juejin",
+        "zhihu.com": "Zhihu",
+        "bilibili.com": "Bilibili",
+        "nowcoder.cn": "Nowcoder",
+        "nowcoder.com": "Nowcoder",
+        "oschina.net": "OSChina",
+        "cnblogs.com": "Cnblogs",
+        "segmentfault.com": "SegmentFault",
     }
     return domain_mapping.get(domain, "")
 
@@ -176,46 +355,45 @@ def transform_work_experience(work_list: List) -> List[Dict]:
     transformed = []
     for item in work_list:
         if isinstance(item, dict):
-            description = item.get("description", "")
+            description = item.get("description", "") or item.get("工作描述", "")
             if isinstance(description, list):
                 description = " ".join(description)
 
-            # Try to parse from 'startDate' if it contains a date range
-            start_date_input = item.get("startDate", "")
+            # Try to parse a date range from startDate/endDate if either
+            # contains a range (e.g. "2020.01 - 至今"). Otherwise fall back
+            # to the LLM-emitted startDate/endDate values as-is.
+            start_date_input = item.get("startDate", "") or item.get("开始时间", "")
+            end_date_input = item.get("endDate", "") or item.get("结束时间", "")
             if start_date_input and any(
-                month in start_date_input
-                for month in [
-                    "Jan",
-                    "Feb",
-                    "Mar",
-                    "Apr",
-                    "May",
-                    "Jun",
-                    "Jul",
-                    "Aug",
-                    "Sep",
-                    "Oct",
-                    "Nov",
-                    "Dec",
-                ]
+                sep in str(start_date_input)
+                for sep in ["-", "–", "—", "~", "到", "至"]
             ):
-                start_date, end_date = parse_date_range(start_date_input)
+                start_date, end_date = parse_date_range(str(start_date_input))
+            elif start_date_input and (
+                _looks_current(end_date_input)
+                or end_date_input in ("", None)
+            ):
+                start_date = _parse_single_date(str(start_date_input))
+                end_date = "Present"
             else:
-                # Use existing startDate and endDate values
-                start_date = item.get("startDate")
-                end_date = item.get("endDate")
+                start_date = _parse_single_date(str(start_date_input)) if start_date_input else item.get("startDate")
+                if _looks_current(str(end_date_input)):
+                    end_date = "Present"
+                else:
+                    end_date = _parse_single_date(str(end_date_input)) if end_date_input else item.get("endDate")
 
             transformed.append(
                 {
-                    "name": item.get("name", ""),
+                    "name": item.get("name", "") or item.get("公司", "") or item.get("单位", ""),
                     "position": item.get(
-                        "position", item.get("type", item.get("title", ""))
+                        "position",
+                        item.get("type", item.get("title", item.get("职位", ""))),
                     ),
                     "url": item.get("url", None),
                     "startDate": start_date,
                     "endDate": end_date,
-                    "summary": item.get("summary", description),
-                    "highlights": item.get("highlights", []),
+                    "summary": item.get("summary", item.get("描述", description)),
+                    "highlights": item.get("highlights", []) or item.get("亮点", []),
                 }
             )
     return transformed
@@ -243,30 +421,56 @@ def transform_education(edu_list: List) -> List[Dict]:
     transformed = []
     for item in edu_list:
         if isinstance(item, dict):
-            if "degree" in item:
-                score = item.get("gpa", item.get("percentage", None))
+            if "degree" in item or any(
+                k in item
+                for k in ("studyType", "area", "学历", "专业", "均分", "成绩", "gpa")
+            ):
+                # Score: English keys first, then Chinese.
+                score = (
+                    item.get("gpa")
+                    or item.get("percentage")
+                    or item.get("score")
+                    or item.get("均分")
+                    or item.get("成绩")
+                    or item.get("gpa_score")
+                    or item.get("排名")
+                )
                 if score is not None:
                     score = str(score)
+
+                # studyType / area: prefer explicit fields; otherwise classify
+                # the combined "degree" string with the Chinese-aware helper.
+                explicit_study = (
+                    item.get("studyType")
+                    or item.get("学历")
+                    or item.get("degree_type")
+                )
+                explicit_area = item.get("area") or item.get("专业")
+                degree_raw = item.get("degree", "")
+                if explicit_study and explicit_area:
+                    study_type = explicit_study
+                    area = explicit_area
+                elif degree_raw:
+                    study_type, area = _classify_study_type(degree_raw)
+                    if explicit_study:
+                        study_type = explicit_study
+                    if explicit_area:
+                        area = explicit_area
+                else:
+                    study_type = explicit_study or ""
+                    area = explicit_area or ""
 
                 start_date, end_date = parse_date_range(item.get("years", ""))
                 transformed.append(
                     {
-                        "institution": item.get("institution", ""),
+                        "institution": item.get("institution", "") or item.get("学校", ""),
                         "url": item.get("url", None),
-                        "area": (
-                            item.get("degree", "").split(", ")[-1]
-                            if "," in item.get("degree", "")
-                            else None
-                        ),
-                        "studyType": (
-                            item.get("degree", "").split(", ")[0]
-                            if "," in item.get("degree", "")
-                            else item.get("degree", "")
-                        ),
+                        "area": area or None,
+                        "studyType": study_type or None,
                         "startDate": start_date,
                         "endDate": end_date,
                         "score": score,
-                        "courses": [],
+                        "courses": item.get("courses", []) or item.get("课程", []),
                     }
                 )
             else:
@@ -315,17 +519,17 @@ def transform_projects(projects_list: List) -> List[Dict]:
     for item in projects_list:
         if isinstance(item, dict):
             skills = []
-            project_name = item.get("name", "")
+            project_name = item.get("name", "") or item.get("项目名称", "")
             if "|" in project_name:
                 name_parts = project_name.split("|")
                 if len(name_parts) > 1:
                     skills_part = name_parts[1].strip()
-                    skills = [skill.strip() for skill in skills_part.split(",")]
+                    skills = _split_technologies(skills_part)
                     item["name"] = name_parts[0].strip()
 
-            technologies = item.get("technologies", [])
+            technologies = item.get("technologies", []) or item.get("技术栈", [])
             if isinstance(technologies, str):
-                technologies = [tech.strip() for tech in technologies.split(",")]
+                technologies = _split_technologies(technologies)
 
             if not skills and technologies:
                 skills = technologies
@@ -410,77 +614,57 @@ def transform_projects_comprehensive(parsed_data: Dict) -> List[Dict]:
 
 
 def parse_date_range(date_range: str) -> tuple:
-    """
-    Parse date range and return both start and end dates.
-    For format like "Jan-Mar 2021", returns ("Jan 2021", "Mar 2021")
+    """Parse a date range into ``(start_date, end_date)`` strings.
+
+    Handles Chinese, English-month, and bare-numeric formats. Returns
+    ``YYYY-MM`` for both ends; uses the sentinel ``"Present"`` for any
+    current-position keyword (中英双语). Returns ``(None, None)`` if the
+    input is empty and no start token is found.
+
+    Accepted formats:
+        ``2020年1月 - 2021年6月``
+        ``2020.01 - 2021.06``
+        ``2020/01 - 2021/06``
+        ``2020-01 - 2021-06``
+        ``2020.01 - 至今``
+        ``2020-2021`` (year-only range)
+        ``Jan 2020 - Mar 2021``
+        ``Jan 2020 - Present``
     """
     if not date_range:
         return None, None
 
-    # Handle "onwards" case
-    if "onwards" in date_range:
-        # Extract the start date from "onwards" format
-        start_part = date_range.replace("onwards", "").strip()
-        if start_part:
-            return start_part, "Present"
+    text = str(date_range).strip()
+
+    # Bare current-position keyword, e.g. "至今" or "Present".
+    if _looks_current(text):
         return None, "Present"
 
-    # Handle format like "Jan-Mar 2021"
-    if " " in date_range and any(
-        month in date_range
-        for month in [
-            "Jan",
-            "Feb",
-            "Mar",
-            "Apr",
-            "May",
-            "Jun",
-            "Jul",
-            "Aug",
-            "Sep",
-            "Oct",
-            "Nov",
-            "Dec",
-        ]
-    ):
-        parts = date_range.split(" ")
-        if len(parts) >= 2:
-            year = parts[-1]
-            month_map = {
-                "Jan": "Jan",
-                "Feb": "Feb",
-                "Mar": "Mar",
-                "Apr": "Apr",
-                "May": "May",
-                "Jun": "Jun",
-                "Jul": "Jul",
-                "Aug": "Aug",
-                "Sep": "Sep",
-                "Oct": "Oct",
-                "Nov": "Nov",
-                "Dec": "Dec",
-            }
-
-            # Check if it's a range like "Jan-Mar 2021"
-            if "-" in parts[0] and len(parts[0].split("-")) == 2:
-                start_month, end_month = parts[0].split("-")
-                start_date = f"{month_map.get(start_month, start_month)} {year}"
-                end_date = f"{month_map.get(end_month, end_month)} {year}"
-                return start_date, end_date
-            else:
-                # Single month format like "Jan 2021"
-                month = month_map.get(parts[0], parts[0])
-                start_date = f"{month} {year}"
-                return start_date, None
-
-    # Handle year range like "2020-2021"
-    if "-" in date_range and len(date_range.split("-")) == 2:
-        start_year, end_year = date_range.split("-")
-        start_date = f"{start_year}-01"
-        end_date = f"{end_year}-12"
+    # Detect current-position (bilingual) — "至今", "Present", etc.
+    # We do this by splitting on the range separator and checking each
+    # half independently so a date range with a present end still works.
+    parts = _RANGE_SEP.split(text, maxsplit=1)
+    if len(parts) == 2:
+        start_token, end_token = parts
+        start_date = _parse_single_date(start_token)
+        if _looks_current(end_token):
+            return start_date, "Present"
+        end_date = _parse_single_date(end_token)
+        if start_date is None and end_date is None:
+            return None, None
+        # Year-only range like "2020-2021" (no month on either side):
+        # treat the end year as a full December, not January.
+        if (
+            end_date
+            and end_token.strip().isdigit()
+            and len(end_token.strip()) == 4
+            and start_date
+        ):
+            end_date = f"{end_token.strip()}-12"
         return start_date, end_date
 
-    return None, None
+    # Single-date input.
+    return _parse_single_date(text), None
 
 
 def fetch_profile(profiles, network_names, prefix):
@@ -730,14 +914,14 @@ def convert_json_resume_to_text(resume_data: JSONResume) -> str:
 
     if resume_data.basics:
         basics = resume_data.basics
-        text_parts.append("=== BASIC INFORMATION ===")
-        text_parts.append(f"Name: {basics.name or 'Not provided'}")
-        text_parts.append(f"Email: {basics.email or 'Not provided'}")
-        text_parts.append(f"Phone: {basics.phone or 'Not provided'}")
-        text_parts.append(f"Website: {basics.url or 'Not provided'}")
+        text_parts.append("=== BASIC INFORMATION / 个人信息 ===")
+        text_parts.append(f"Name / 姓名: {basics.name or 'Not provided / 未提供'}")
+        text_parts.append(f"Email / 邮箱: {basics.email or 'Not provided / 未提供'}")
+        text_parts.append(f"Phone / 电话: {basics.phone or 'Not provided / 未提供'}")
+        text_parts.append(f"Website / 个人网站: {basics.url or 'Not provided / 未提供'}")
 
         if basics.summary:
-            text_parts.append(f"Summary: {basics.summary}")
+            text_parts.append(f"Summary / 个人简介: {basics.summary}")
 
         if basics.location:
             loc = basics.location
@@ -754,119 +938,119 @@ def convert_json_resume_to_text(resume_data: JSONResume) -> str:
                 location_parts.append(loc.countryCode)
 
             if location_parts:
-                text_parts.append(f"Location: {', '.join(location_parts)}")
+                text_parts.append(f"Location / 所在地: {', '.join(location_parts)}")
 
         if basics.profiles:
-            text_parts.append("Profiles:")
+            text_parts.append("Profiles / 个人主页:")
             for profile in basics.profiles:
                 text_parts.append(
                     f"  - {profile.network}: {profile.username} ({profile.url})"
                 )
 
     if resume_data.work:
-        text_parts.append("\n=== WORK EXPERIENCE ===")
+        text_parts.append("\n=== WORK EXPERIENCE / 工作经历 ===")
         for i, work in enumerate(resume_data.work, 1):
             text_parts.append(f"{i}. {work.position} at {work.name}")
-            text_parts.append(f"   Period: {work.startDate} - {work.endDate}")
+            text_parts.append(f"   Period / 时间: {work.startDate} - {work.endDate}")
             if work.url:
-                text_parts.append(f"   Website: {work.url}")
+                text_parts.append(f"   Website / 链接: {work.url}")
             if work.summary:
-                text_parts.append(f"   Description: {work.summary}")
+                text_parts.append(f"   Description / 描述: {work.summary}")
             if work.highlights:
-                text_parts.append("   Key Achievements:")
+                text_parts.append("   Key Achievements / 主要成就:")
                 for highlight in work.highlights:
                     text_parts.append(f"     • {highlight}")
 
     if resume_data.education:
-        text_parts.append("\n=== EDUCATION ===")
+        text_parts.append("\n=== EDUCATION / 教育经历 ===")
         for i, edu in enumerate(resume_data.education, 1):
             text_parts.append(f"{i}. {edu.studyType} in {edu.area}")
-            text_parts.append(f"   Institution: {edu.institution}")
-            text_parts.append(f"   Period: {edu.startDate} - {edu.endDate}")
+            text_parts.append(f"   Institution / 学校: {edu.institution}")
+            text_parts.append(f"   Period / 时间: {edu.startDate} - {edu.endDate}")
             if edu.score:
-                text_parts.append(f"   Score: {edu.score}")
+                text_parts.append(f"   Score / 成绩: {edu.score}")
             if edu.url:
-                text_parts.append(f"   Website: {edu.url}")
+                text_parts.append(f"   Website / 链接: {edu.url}")
             if edu.courses:
-                text_parts.append(f"   Courses: {', '.join(edu.courses)}")
+                text_parts.append(f"   Courses / 主修课程: {', '.join(edu.courses)}")
 
     if resume_data.skills:
-        text_parts.append("\n=== SKILLS ===")
+        text_parts.append("\n=== SKILLS / 技能 ===")
         for skill in resume_data.skills:
             text_parts.append(f"• {skill.name}")
             if skill.level:
-                text_parts.append(f"  Level: {skill.level}")
+                text_parts.append(f"  Level / 水平: {skill.level}")
             if skill.keywords:
-                text_parts.append(f"  Keywords: {', '.join(skill.keywords)}")
+                text_parts.append(f"  Keywords / 关键词: {', '.join(skill.keywords)}")
 
     if resume_data.projects:
-        text_parts.append("\n=== PROJECTS ===")
+        text_parts.append("\n=== PROJECTS / 项目经历 ===")
         for i, project in enumerate(resume_data.projects, 1):
             text_parts.append(f"{i}. {project.name}")
             if project.startDate and project.endDate:
-                text_parts.append(f"   Period: {project.startDate} - {project.endDate}")
+                text_parts.append(f"   Period / 时间: {project.startDate} - {project.endDate}")
             if project.description:
-                text_parts.append(f"   Description: {project.description}")
+                text_parts.append(f"   Description / 描述: {project.description}")
             if project.url:
-                text_parts.append(f"   URL: {project.url}")
+                text_parts.append(f"   URL / 链接: {project.url}")
             if project.highlights:
-                text_parts.append("   Highlights:")
+                text_parts.append("   Highlights / 亮点:")
                 for highlight in project.highlights:
                     text_parts.append(f"     • {highlight}")
 
     if resume_data.awards:
-        text_parts.append("\n=== AWARDS ===")
+        text_parts.append("\n=== AWARDS / 荣誉奖项 ===")
         for award in resume_data.awards:
             text_parts.append(f"• {award.title} - {award.awarder} ({award.date})")
             if award.summary:
                 text_parts.append(f"  {award.summary}")
 
     if resume_data.certificates:
-        text_parts.append("\n=== CERTIFICATES ===")
+        text_parts.append("\n=== CERTIFICATES / 证书 ===")
         for cert in resume_data.certificates:
             text_parts.append(f"• {cert.name} - {cert.issuer} ({cert.date})")
             if cert.url:
-                text_parts.append(f"  URL: {cert.url}")
+                text_parts.append(f"  URL / 链接: {cert.url}")
 
     if resume_data.publications:
-        text_parts.append("\n=== PUBLICATIONS ===")
+        text_parts.append("\n=== PUBLICATIONS / 出版物 ===")
         for pub in resume_data.publications:
             text_parts.append(f"• {pub.name} - {pub.publisher} ({pub.releaseDate})")
             if pub.url:
-                text_parts.append(f"  URL: {pub.url}")
+                text_parts.append(f"  URL / 链接: {pub.url}")
             if pub.summary:
                 text_parts.append(f"  {pub.summary}")
 
     if resume_data.languages:
-        text_parts.append("\n=== LANGUAGES ===")
+        text_parts.append("\n=== LANGUAGES / 语言能力 ===")
         for lang in resume_data.languages:
             text_parts.append(f"• {lang.language} - {lang.fluency}")
 
     if resume_data.interests:
-        text_parts.append("\n=== INTERESTS ===")
+        text_parts.append("\n=== INTERESTS / 兴趣爱好 ===")
         for interest in resume_data.interests:
             text_parts.append(f"• {interest.name}")
             if interest.keywords:
-                text_parts.append(f"  Keywords: {', '.join(interest.keywords)}")
+                text_parts.append(f"  Keywords / 关键词: {', '.join(interest.keywords)}")
 
     if resume_data.references:
-        text_parts.append("\n=== REFERENCES ===")
+        text_parts.append("\n=== REFERENCES / 推荐人 ===")
         for ref in resume_data.references:
             text_parts.append(f"• {ref.name}")
             if ref.reference:
                 text_parts.append(f"  {ref.reference}")
 
     if resume_data.volunteer:
-        text_parts.append("\n=== VOLUNTEER EXPERIENCE ===")
+        text_parts.append("\n=== VOLUNTEER EXPERIENCE / 志愿服务 ===")
         for volunteer in resume_data.volunteer:
             text_parts.append(f"• {volunteer.position} at {volunteer.organization}")
-            text_parts.append(f"  Period: {volunteer.startDate} - {volunteer.endDate}")
+            text_parts.append(f"  Period / 时间: {volunteer.startDate} - {volunteer.endDate}")
             if volunteer.url:
-                text_parts.append(f"  Website: {volunteer.url}")
+                text_parts.append(f"  Website / 链接: {volunteer.url}")
             if volunteer.summary:
-                text_parts.append(f"  Description: {volunteer.summary}")
+                text_parts.append(f"  Description / 描述: {volunteer.summary}")
             if volunteer.highlights:
-                text_parts.append("  Highlights:")
+                text_parts.append("  Highlights / 亮点:")
                 for highlight in volunteer.highlights:
                     text_parts.append(f"    • {highlight}")
 
